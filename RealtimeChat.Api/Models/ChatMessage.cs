@@ -19,4 +19,6 @@ public class ChatMessage
 
     public int ChatroomId { get; set; }
     public Chatroom Room { get; set; } = null!;
+
+    public string Sentiment { get; set; } = "Neutral";
 }

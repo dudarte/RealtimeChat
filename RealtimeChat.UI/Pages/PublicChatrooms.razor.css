@@ -291,3 +291,7 @@
     color: #999; 
     font-style: italic; 
 }
+
+.msg-bubble.positive { border-left: 5px solid #28a745; }
+.msg-bubble.negative { border-left: 5px solid #dc3545; }
+.msg-bubble.neutral { border-left: 5px solid #ffc107; }

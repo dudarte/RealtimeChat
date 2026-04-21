@@ -46,11 +46,14 @@ public class ChatHub : Hub
             return; 
         }
 
+        string detectedSentiment = AnalyzeSentiment(message);
+
         var chatMessage = new ChatMessage
         {
             UserId = user.Id,
             ChatroomId = roomId,
             Text = message,
+            Sentiment = detectedSentiment,
             Timestamp = DateTime.UtcNow
         };
 
