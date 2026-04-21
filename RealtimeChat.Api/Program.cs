@@ -48,8 +48,12 @@ builder.Services.AddCors(options =>
     });
 });
 
+
 builder.Services.AddDbContext<ChatDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// builder.Services.AddDbContext<ChatDbContext>(options =>
+//     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 builder.Services.AddOpenApi();
 
