@@ -8,7 +8,9 @@ using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddSignalR();
+builder.Services.AddSignalR().AddAzureSignalR(builder.Configuration.GetConnectionString("SignalRConnection"));
+
+// builder.Services.AddSignalR();
 
 builder.Services.AddControllers(); 
 
