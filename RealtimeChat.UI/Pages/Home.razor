@@ -1,0 +1,74 @@
+﻿@page "/"
+@attribute [Authorize]
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager NavManager
+
+<PageTitle>Dashboard - RealtimeChat</PageTitle>
+
+<div class="dashboard-container">
+    <div class="welcome-card">
+        <h1>Welcome back, @(userName ?? "Explorer")! 👋</h1>
+        <p>Your real-time communication hub is ready. Dive into a conversation, explore new communities, or start your own channel.</p>
+    </div>
+
+    <div class="actions-grid">
+        <div class="action-card" @onclick='() => NavManager.NavigateTo("/chatrooms")'>
+            <div class="icon-wrapper blue">
+                <i class="bi bi-chat-dots-fill"></i>
+            </div>
+            <h3>Browse Channels</h3>
+            <p>Discover active chatrooms, search by tags, and join the conversation in real-time.</p>
+        </div>
+
+        <div class="action-card" @onclick='() => NavManager.NavigateTo("/create-chatroom")'>
+            <div class="icon-wrapper green">
+                <i class="bi bi-plus-square-fill"></i>
+            </div>
+            <h3>Create a Room</h3>
+            <p>Start a new community. Set up a topic, add custom tags, and invite others to join.</p>
+        </div>
+
+        <div class="action-card" @onclick='() => NavManager.NavigateTo("/manage-rooms")'>
+            <div class="icon-wrapper purple">
+                <i class="bi bi-gear-fill"></i>
+            </div>
+            <h3>Manage Rooms</h3>
+            <p>Moderate your channels. Update room details, ban troublemakers, and maintain order.</p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string? userName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+            if (!string.IsNullOrEmpty(token))
+            {
+                Http.DefaultRequestHeaders.Authorization = 
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                
+                var userInfo = await Http.GetFromJsonAsync<UserProfile>("api/auth/me");
+                if (userInfo != null)
+                {
+                    userName = userInfo.DisplayName;
+                }
+            }
+        }
+        catch
+        {
+            Console.WriteLine("Could not fetch user profile for dashboard greeting.");
+        }
+    }
+
+    public class UserProfile
+    {
+        public string DisplayName { get; set; } = "";
+        public string ShortId { get; set; } = "";
+    }
+}

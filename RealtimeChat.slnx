@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="RealtimeChat.Api/RealtimeChat.Api.csproj" />
+  <Project Path="RealtimeChat.UI/RealtimeChat.UI.csproj" />
+</Solution>

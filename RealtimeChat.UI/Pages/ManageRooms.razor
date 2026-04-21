@@ -1,0 +1,195 @@
+@page "/manage-rooms"
+@attribute [Authorize]
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Manage Rooms</PageTitle>
+
+<div class="manage-container">
+    <h2 class="page-title">Manage Your Channels</h2>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="error-alert">
+            @errorMessage
+        </div>
+    }
+
+    @if (managedRooms == null)
+    {
+        <p>Loading your channels...</p>
+    }
+    else if (!managedRooms.Any())
+    {
+        <div class="empty-state">
+            <p class="empty-state-text">You aren't an admin of any rooms yet.</p>
+        </div>
+    }
+    else
+    {
+        <div class="room-list">
+            @foreach (var room in managedRooms)
+            {
+                <div class="room-card">
+                    
+                    @if (room.IsEditing)
+                    {
+                        <div class="edit-form">
+                            <div>
+                                <label class="edit-label">Channel Name</label>
+                                <input @bind="room.EditName" class="edit-input" />
+                            </div>
+                            <div>
+                                <label class="edit-label">Tags (comma separated)</label>
+                                <input @bind="room.EditTags" class="edit-input" />
+                            </div>
+                            <div class="edit-actions">
+                                <button @onclick="() => CancelEdit(room)" class="btn-cancel">Cancel</button>
+                                <button @onclick="() => SaveRoom(room)" class="btn-save">Save Changes</button>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="room-header">
+                            <div>
+                                <h4 class="room-title">@room.Name</h4>
+                                <div class="tag-list">
+                                    @foreach(var tag in room.Tags)
+                                    {
+                                        <span class="room-tag">#@tag</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="room-actions">
+                                <button @onclick="() => StartEdit(room)" class="btn-edit">
+                                    <span class="bi bi-pencil-square icon-margin"></span> Edit
+                                </button>
+                                <button @onclick="() => DeleteRoom(room)" class="btn-delete">
+                                    <span class="bi bi-trash-fill"></span>
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<ManagedRoomModel>? managedRooms;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadManagedRooms();
+    }
+
+    private async Task LoadManagedRooms()
+    {
+        try
+        {
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var apiRooms = await Http.GetFromJsonAsync<List<ManagedRoomModel>>("api/chatrooms/managed");
+            if (apiRooms != null)
+            {
+                managedRooms = apiRooms;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to load your rooms.";
+            managedRooms = new List<ManagedRoomModel>();
+        }
+    }
+
+    private void StartEdit(ManagedRoomModel room)
+    {
+        room.EditName = room.Name;
+        room.EditTags = string.Join(", ", room.Tags);
+        room.IsEditing = true;
+    }
+
+    private void CancelEdit(ManagedRoomModel room)
+    {
+        room.IsEditing = false;
+    }
+
+    private async Task SaveRoom(ManagedRoomModel room)
+    {
+        try
+        {
+            errorMessage = null;
+
+            var newTags = room.EditTags.Split(',')
+                                       .Select(t => t.Trim().ToLower())
+                                       .Where(t => !string.IsNullOrEmpty(t))
+                                       .ToList();
+
+            var payload = new { Name = room.EditName, Tags = newTags };
+
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var response = await Http.PutAsJsonAsync($"api/chatrooms/{room.Id}", payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                room.Name = room.EditName;
+                room.Tags = newTags;
+                room.IsEditing = false;
+            }
+            else
+            {
+                errorMessage = "Failed to save changes. You might not have permission.";
+            }
+        }
+        catch
+        {
+            errorMessage = "An error occurred while saving.";
+        }
+    }
+
+    private async Task DeleteRoom(ManagedRoomModel room)
+    {
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to completely delete '{room.Name}' and all its messages? This cannot be undone.");
+        if (!confirmed) return;
+
+        try
+        {
+            errorMessage = null;
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var response = await Http.DeleteAsync($"api/chatrooms/{room.Id}");
+
+            if (response.IsSuccessStatusCode)
+            {
+                managedRooms?.Remove(room);
+            }
+            else
+            {
+                errorMessage = "Failed to delete room. You might not have permission.";
+            }
+        }
+        catch
+        {
+            errorMessage = "An error occurred while trying to delete the room.";
+        }
+    }
+
+    public class ManagedRoomModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public List<string> Tags { get; set; } = new();
+
+        public bool IsEditing { get; set; } = false;
+        public string EditName { get; set; } = "";
+        public string EditTags { get; set; } = "";
+    }
+}

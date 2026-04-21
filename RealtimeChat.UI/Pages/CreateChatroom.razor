@@ -1,0 +1,78 @@
+@page "/create-chatroom"
+@attribute [Authorize]
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject NavigationManager NavManager
+
+<PageTitle>Create Channel</PageTitle>
+
+<div class="create-room-container">
+    <h2 class="create-room-title">Create a New Channel</h2>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="error-message">
+            @errorMessage
+        </div>
+    }
+
+    <div class="form-group">
+        <label class="form-label">Channel Name</label>
+        <input @bind="roomName" class="form-input" placeholder="e.g. Cooking Enthusiasts" />
+    </div>
+
+    <div class="form-group mb-large">
+        <label class="form-label">Tags (comma separated)</label>
+        <input @bind="tagsInput" class="form-input" placeholder="e.g. cooking, baking, food" />
+    </div>
+
+    <button @onclick="SubmitForm" class="submit-btn">
+        Create Room
+    </button>
+</div>
+
+@code {
+    private string roomName = "";
+    private string tagsInput = "";
+    private string? errorMessage;
+
+    private async Task SubmitForm()
+    {
+        errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(roomName))
+        {
+            errorMessage = "Room name is required.";
+            return;
+        }
+
+        var tagsList = tagsInput.Split(',')
+                                .Select(t => t.Trim().ToLower())
+                                .Where(t => !string.IsNullOrEmpty(t))
+                                .ToList();
+
+        try
+        {
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+            Http.DefaultRequestHeaders.Authorization = 
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var payload = new { Name = roomName, Tags = tagsList };
+            var response = await Http.PostAsJsonAsync("api/chatrooms", payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                NavManager.NavigateTo("/chatrooms");
+            }
+            else
+            {
+                errorMessage = "Could not create the room. Check your connection.";
+            }
+        }
+        catch (Exception)
+        {
+            errorMessage = "An error occurred while creating the room.";
+        }
+    }
+}

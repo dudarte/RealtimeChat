@@ -1,0 +1,147 @@
+.manage-container {
+    max-width: 800px;
+    margin: 40px auto;
+}
+
+.page-title {
+    font-weight: 800;
+    color: #333;
+    margin-bottom: 25px;
+}
+
+.error-alert {
+    color: #721c24;
+    background-color: #f8d7da;
+    border: 1px solid #f5c6cb;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 20px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 50px;
+    background: white;
+    border-radius: 15px;
+    border: 1px solid #eee;
+}
+
+.empty-state-text {
+    color: #666;
+    margin: 0;
+}
+
+.room-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.room-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #eee;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.edit-label {
+    font-size: 0.85rem;
+    color: #666;
+    font-weight: bold;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.edit-input {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.edit-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.btn-cancel {
+    padding: 8px 15px;
+    border: 1px solid #ccc;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.btn-save {
+    padding: 8px 15px;
+    border: none;
+    background: #28a745;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.room-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.room-title {
+    margin: 0 0 5px 0;
+    color: #222;
+    font-weight: 700;
+}
+
+.tag-list {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.room-tag {
+    background: #f0f4f8;
+    color: #0056b3;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+}
+
+.room-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-edit {
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    padding: 8px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #333;
+}
+
+.icon-margin {
+    margin-right: 5px;
+}
+
+.btn-delete {
+    background: #fff0f0;
+    border: 1px solid #ffcdd2;
+    padding: 8px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #d32f2f;
+}

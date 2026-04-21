@@ -1,0 +1,79 @@
+﻿@using RealtimeChat.UI.Auth
+@inject IJSRuntime JS
+@inject NavigationManager NavManager
+@inject AuthenticationStateProvider AuthStateProvider
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">RealtimeChat.UI</a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <nav class="nav flex-column" style="height: 100%; justify-content: space-between;">
+        <div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All" style="display: flex; align-items: center;">
+                    <span class="bi bi-house-door-fill" aria-hidden="true" 
+                        style="font-size: 1.5rem; margin-right: 15px; display: inline-flex; align-self: center;"></span> 
+                    Home
+                </NavLink>
+            </div>
+            
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="chatrooms" style="display: flex; align-items: center;">
+                    <span class="bi bi-chat-dots-fill" aria-hidden="true" 
+                        style="font-size: 1.5rem; margin-right: 15px; display: inline-flex; align-self: center;"></span> 
+                    Chatrooms
+                </NavLink>
+            </div>
+            
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="create-chatroom" style="display: flex; align-items: center;">
+                    <span class="bi bi-plus-square-fill" aria-hidden="true" 
+                        style="font-size: 1.5rem; margin-right: 15px; display: inline-flex; align-self: center;"></span> 
+                    Create Room
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="manage-rooms" style="display: flex; align-items: center;">
+                    <span class="bi bi-gear-fill" aria-hidden="true" 
+                        style="font-size: 1.5rem; margin-right: 15px; display: inline-flex; align-self: center;"></span> 
+                    Manage Rooms
+                </NavLink>
+            </div>
+        </div>
+
+        <div class="nav-item px-3" style="padding-bottom: 2rem;">
+            <NavLink class="nav-link" href="javascript:void(0)" @onclick="HandleLogout" style="cursor: pointer; display: flex; align-items: center; color: #ff6b6b;">
+                <span class="bi bi-box-arrow-right" aria-hidden="true" 
+                    style="font-size: 1.5rem; margin-right: 15px; display: inline-flex; align-self: center; color: #ff6b6b;"></span> 
+                Logout
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+    private async Task HandleLogout()
+    {
+        await JS.InvokeVoidAsync("localStorage.removeItem", "authToken");
+
+        ((JwtAuthStateProvider)AuthStateProvider).NotifyUserLoggedOut();
+
+        NavManager.NavigateTo("/login");
+    }
+}

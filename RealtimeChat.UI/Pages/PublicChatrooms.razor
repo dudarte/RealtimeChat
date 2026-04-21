@@ -1,0 +1,326 @@
+@page "/chatrooms"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Public Chatrooms</PageTitle>
+
+@if (selectedRoom == null)
+{
+    <div style="margin-bottom: 10px;">
+        <h2 style="font-weight: 800; color: #333;">Explore Channels</h2>
+    </div>
+
+    <div class="search-container">
+        <input @bind="searchQuery" @bind:event="oninput" 
+               class="search-input" 
+               placeholder="Search rooms or #tags..." />
+               
+        <select @bind="currentSort" class="sort-dropdown">
+            <option value="updated_desc">Last updated (Newer first)</option>
+            <option value="updated_asc">Last updated (Older first)</option>
+            <option value="created_desc">Created (Newer first)</option>
+            <option value="created_asc">Created (Older first)</option>
+        </select>
+    </div>
+
+    @if (rooms == null)
+    {
+        <p><em>Loading chatrooms...</em></p>
+    }
+    else if (!FilteredRooms.Any())
+    {
+        <div class="no-results">
+            <p>No rooms found matching "@searchQuery"</p>
+        </div>
+    }
+    else
+    {
+        <div class="room-list">
+            @foreach (var room in FilteredRooms)
+            {
+                <div class="room-card" @onclick="() => OpenRoom(room)">
+                    <div>
+                        <div class="room-title">@room.Name</div>
+                        <div class="room-tags">
+                            @foreach(var tag in room.Tags)
+                            {
+                                <span class="tag">#@tag</span>
+                            }
+                        </div>
+                        <div class="room-meta">
+                            <span>Created: @room.CreationDate.ToString("MMM dd, yyyy")</span>
+                            <span>Last active: @room.LastActivity.ToString("g")</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+else
+{
+    <div class="chat-layout">
+        <div class="chat-header">
+            <button class="back-btn" @onclick="CloseRoom">← Back</button>
+            <h3 style="margin: 0;">@selectedRoom.Name</h3>
+        </div>
+
+        <div id="chatWindow" class="chat-messages">
+            @foreach (var msg in messages)
+            {
+                var isMine = string.Equals(msg.SenderId, currentUserTag, StringComparison.OrdinalIgnoreCase);
+                <div class="msg-wrapper @(isMine ? "msg-mine" : "msg-theirs")">
+                    <div class="msg-bubble">
+                        
+                        <div class="msg-header" style="display: flex; align-items: baseline; width: 100%;">
+                            <span class="msg-name">@msg.SenderName</span>
+                            <span class="msg-id" style="margin-left: 8px;">@@@msg.SenderId</span>
+                            
+                            @if (isAdminInCurrentRoom && !isMine)
+                            {
+                                <div class="admin-actions">
+                                    <button title="Delete Message" class="admin-btn btn-del" @onclick="() => DeleteMessage(msg.Id)">
+                                        <i class="bi bi-trash-fill"></i>
+                                    </button>
+                                    <button title="Ban User" class="admin-btn btn-ban" @onclick="() => BanUser(msg.SenderId)">
+                                        <i class="bi bi-slash-circle-fill"></i>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                        <div>@msg.Text</div>
+                    </div>
+                    <div class="msg-time">@msg.Timestamp.ToString("MMM dd, HH:mm")</div>
+                </div>
+            }
+        </div>
+
+        <div class="chat-input-area">
+            <input @bind="newMessage" @bind:event="oninput" @onkeyup="HandleKeyUp" class="chat-input" placeholder="Message @selectedRoom.Name..." />
+            <button class="send-btn" @onclick="SendMessage" disabled="@(!IsConnected)">Send</button>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Chatroom>? rooms;
+    private Chatroom? selectedRoom;
+    private List<Message> messages = new();
+    private string searchQuery = ""; 
+    private string currentSort = "updated_desc";
+    private bool isAdminInCurrentRoom = false;
+
+    private IEnumerable<Chatroom> FilteredRooms 
+    {
+        get
+        {
+            var query = rooms ?? new List<Chatroom>();
+
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                query = query.Where(r => 
+                    r.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) || 
+                    r.Tags.Any(t => t.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            }
+
+            return currentSort switch
+            {
+                "updated_desc" => query.OrderByDescending(r => r.LastActivity),
+                "updated_asc" => query.OrderBy(r => r.LastActivity),
+                "created_desc" => query.OrderByDescending(r => r.CreationDate),
+                "created_asc" => query.OrderBy(r => r.CreationDate),
+                _ => query.OrderByDescending(r => r.LastActivity)
+            };
+        }
+    }
+
+    private string? errorMessage;
+    private HubConnection? hubConnection;
+    private string newMessage = "";
+    private string currentUserTag = ""; 
+    private string currentDisplayName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var userInfo = await Http.GetFromJsonAsync<UserProfile>("api/auth/me");
+            if (userInfo != null)
+            {
+                currentUserTag = userInfo.ShortId;
+                currentDisplayName = userInfo.DisplayName;
+                
+                Console.WriteLine($"Auth success. My Tag is: {currentUserTag}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Profile load failed: {ex.Message}");
+        }
+
+        await LoadRooms();
+
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl("https://localhost:7034/chathub", options =>
+            {
+                options.AccessTokenProvider = async () => 
+                    await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+            })
+            .Build();
+
+        hubConnection.On<int, string, string, string, DateTime>("ReceiveMessage", async (id, displayName, shortId, text, timestamp) =>
+        {
+            messages.Add(new Message 
+            { 
+                Id = id,
+                SenderName = displayName, 
+                SenderId = shortId, 
+                Text = text, 
+                Timestamp = timestamp 
+            });
+            await InvokeAsync(StateHasChanged);
+            await ScrollToBottom();
+        });
+
+        await hubConnection.StartAsync();
+    }
+
+    private async Task LoadRooms()
+    {
+        try
+        {
+            errorMessage = null;
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+            if (!string.IsNullOrEmpty(token))
+            {
+                Http.DefaultRequestHeaders.Authorization = 
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            }
+
+            rooms = await Http.GetFromJsonAsync<List<Chatroom>>("api/chatrooms");
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to load chatrooms: {ex.Message}");
+            errorMessage = "Failed to load rooms. Please try again.";
+            rooms = new List<Chatroom>(); 
+        }
+    }
+
+    private async Task OpenRoom(Chatroom room)
+    {
+        selectedRoom = room;
+        
+        messages = await Http.GetFromJsonAsync<List<Message>>($"/api/chatrooms/{room.Id}/messages") ?? new List<Message>();
+
+        try 
+        {
+            var token = await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
+            Http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+            isAdminInCurrentRoom = await Http.GetFromJsonAsync<bool>($"api/chatrooms/{room.Id}/is-admin");
+        }
+        catch { isAdminInCurrentRoom = false; }
+
+        if (hubConnection is not null)
+        {
+            await hubConnection.SendAsync("JoinRoom", room.Id);
+        }
+    }
+
+    private async Task DeleteMessage(int messageId)
+    {
+        if (selectedRoom == null) return;
+        var response = await Http.DeleteAsync($"api/chatrooms/{selectedRoom.Id}/messages/{messageId}");
+        if (response.IsSuccessStatusCode)
+        {
+            messages.RemoveAll(m => m.Id == messageId);
+        }
+    }
+
+    private async Task BanUser(string targetShortId)
+    {
+        if (selectedRoom == null) return;
+        
+        var confirmed = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to ban @{targetShortId}?");
+        if (!confirmed) return;
+
+        var response = await Http.PostAsync($"api/chatrooms/{selectedRoom.Id}/ban/{targetShortId}", null);
+        if (response.IsSuccessStatusCode)
+        {
+            await JS.InvokeVoidAsync("alert", "User banned successfully.");
+        }
+    }
+
+    private async Task CloseRoom()
+    {
+        if (selectedRoom != null && hubConnection is not null)
+        {
+            await hubConnection.SendAsync("LeaveRoom", selectedRoom.Id);
+        }
+        selectedRoom = null;
+        messages.Clear();
+    }
+
+    private async Task SendMessage()
+    {
+        if (hubConnection is not null && !string.IsNullOrWhiteSpace(newMessage) && selectedRoom != null)
+        {
+            await hubConnection.SendAsync("SendMessage", selectedRoom.Id, newMessage);
+            newMessage = "";
+        }
+    }
+
+    private void HandleKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            SendMessage();
+        }
+    }
+
+    public bool IsConnected => hubConnection?.State == HubConnectionState.Connected;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+
+    private async Task ScrollToBottom()
+    {
+        await JS.InvokeVoidAsync("eval", "document.getElementById('chatWindow')?.scrollTo(0, document.getElementById('chatWindow').scrollHeight)");
+    }
+
+    public class Chatroom
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public List<string> Tags { get; set; } = new();
+        public DateTime CreationDate { get; set; }
+        public DateTime LastActivity { get; set; }
+        public int MemberCount { get; set; }
+    }
+
+    public class Message
+    {
+        public int Id { get; set; }
+        public string SenderName { get; set; } = "";
+        public string SenderId { get; set; } = "";
+        public string Text { get; set; } = "";
+        public DateTime Timestamp { get; set; }
+    }
+
+    public class UserProfile
+    {
+        public string DisplayName { get; set; } = "";
+        public string ShortId { get; set; } = "";
+    }
+}
