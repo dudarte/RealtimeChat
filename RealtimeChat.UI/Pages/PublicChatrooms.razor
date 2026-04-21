@@ -1,10 +1,13 @@
 @page "/chatrooms"
 @attribute [Authorize]
 @using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.Extensions.Configuration
 @using System.Net.Http.Json
 @inject HttpClient Http
 @inject IJSRuntime JS
 @implements IAsyncDisposable
+@inject IConfiguration Config
+
 
 <PageTitle>Public Chatrooms</PageTitle>
 
@@ -165,8 +168,10 @@ else
 
         await LoadRooms();
 
+        var backendUrl = Config["BackendUrl"];
+        
         hubConnection = new HubConnectionBuilder()
-            .WithUrl("https://localhost:7034/chathub", options =>
+            .WithUrl($"{backendUrl}/chathub", options =>
             {
                 options.AccessTokenProvider = async () => 
                     await JS.InvokeAsync<string>("localStorage.getItem", "authToken");
